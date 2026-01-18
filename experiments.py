@@ -23,7 +23,7 @@ import os
 # We train the model
 # We evaluate the model
 # We log the results
-def run_experiment(dataset, model_name, feature_names, p, s = None, t = None):
+def run_experiment(dataset, model_name, feature_names, p, t = None):
     k = 10
     net_type = 'sign_net'
     print(f"Running p = {p}...")
@@ -40,11 +40,11 @@ def run_experiment(dataset, model_name, feature_names, p, s = None, t = None):
     for feature_name in feature_names:
         if feature_name == "none":
             k = 0
-        if s is not None and t is not None:
-            print(f"Running with feature {feature_name}, s {s}, and t {t}...")
+        if t is not None:
+            print(f"Running with feature {feature_name}, t={t}...")
         else:
             print(f"Running with feature {feature_name}...")
-        features = get_features(data, feature_name, k, p, s, t)
+        features = get_features(data, feature_name, k, p, t)
         hyperparams = get_hyperparameters(model_name, data, features, num_classes, k)
 
         if model_name == "mlp":
@@ -59,13 +59,13 @@ def run_experiment(dataset, model_name, feature_names, p, s = None, t = None):
             model = get_model("sage", hyperparams, k, net_type)
         else:
             raise Exception("model {} not supported".format(model_name))
-        
+
         trained_model, train_acc, accuracy_list_train, accuracy_list_test = train_model(model, hyperparams, features, data, train_mask, test_mask)
         test_acc = evaluate_model(trained_model, features, data, test_mask)
         filename = "logs/{}_{}_{}.txt".format(dataset, model_name, feature_name)
         os.makedirs(os.path.dirname(filename), exist_ok=True)
-        if s and t:
-            logToFile(filename, """p: {}, s: {}, t: {}, training accuracy: {}, testing accuracy: {}\n""".format(p, s, t, round(train_acc*100, 2), round(test_acc*100, 2)))
+        if t is not None:
+            logToFile(filename, """p: {}, t: {}, training accuracy: {}, testing accuracy: {}\n""".format(p, t, round(train_acc*100, 2), round(test_acc*100, 2)))
         else:
             logToFile(filename, """p: {}, training accuracy: {}, testing accuracy: {}\n""".format(p, round(train_acc*100, 2), round(test_acc*100, 2)))
 

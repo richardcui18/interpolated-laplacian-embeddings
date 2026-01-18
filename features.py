@@ -11,7 +11,7 @@ from sklearn.preprocessing import StandardScaler
 import scipy
 
 
-def get_features(data, feature_name, k, p, s = None, t = None):
+def get_features(data, feature_name, k, p, t = None):
     
     x_raw = data.x.clone()
     x = torch.tensor(StandardScaler().fit_transform(x_raw), dtype=torch.float32)
@@ -51,8 +51,8 @@ def get_features(data, feature_name, k, p, s = None, t = None):
         return torch.cat([x, adj_features], dim=1)
     
     elif feature_name == "general_family":
-        if s is None or t is None:
-            raise ValueError("Parameter 's' and 't' must be provided when using 'general_family' feature type.")
+        if t is None:
+            raise ValueError("Parameter 't' must be provided when using 'general_family' feature type.")
 
         A = to_scipy_sparse_matrix(data.edge_index).tocsc()
         dense_A = A.toarray()
@@ -60,7 +60,7 @@ def get_features(data, feature_name, k, p, s = None, t = None):
         degrees = dense_A.sum(axis=1)
         D = np.diag(degrees)
 
-        M = t * D - s * dense_A
+        M = t * D - (1.0 - t) * dense_A
 
         eigval, eigvec = eigh(M)
 
