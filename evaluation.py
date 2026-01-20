@@ -89,10 +89,18 @@ def spectral_alignment_scores(data, t, k=None, observed_mask=None):
     rho_arr = np.array(rho_list)
     rho_sp_arr = np.array(rho_spearman_list)
 
-    # Weighted sum by eigenvalues; normalize by trace (=sum eigenvalues)
-    trace = eigvals.sum() if eigvals.sum() != 0 else 1.0
-    corr_score = (eigvals * rho_arr).sum() / trace
-    spearman_score = (eigvals * rho_sp_arr).sum() / trace
+    # # Weighted sum by eigenvalues; normalize by trace (=sum eigenvalues)
+    # trace = eigvals.sum() if eigvals.sum() != 0 else 1.0
+    # corr_score = (eigvals * rho_arr).sum() / trace
+    # spearman_score = (eigvals * rho_sp_arr).sum() / trace
+
+    # Weighted sum by absolute eigenvalues; normalize by sum of abs eigenvalues
+    abs_eigvals = np.abs(eigvals)
+    trace = abs_eigvals.sum() if abs_eigvals.sum() != 0 else 1.0
+
+    corr_score = (abs_eigvals * rho_arr).sum() / trace
+    spearman_score = (abs_eigvals * rho_sp_arr).sum() / trace
+
 
     return {
         "correlation_score": float(corr_score),
