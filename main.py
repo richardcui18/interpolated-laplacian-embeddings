@@ -13,7 +13,11 @@ random.seed(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
 
-models = ['gcn', 'mlp', 'gin', 'sage']
+# models = ['gcn', 'mlp', 'gin', 'sage']
+models = ['gcn', 'mlp']
+num_layers = 5
+
+print("Num layers in GCN", num_layers)
 
 t_values = [round(x, 2) for x in np.arange(0.0, 1.01, 0.1)]
 
@@ -63,7 +67,7 @@ t_values = [round(x, 2) for x in np.arange(0.0, 1.01, 0.1)]
 #             for variant in ['none', 'adjacency', 'laplacian']:
 #                 key = (model, variant)
 #                 results = [
-#                     run_experiment(dataset, model, [variant], p)[1][variant.capitalize()][-1]
+#                     run_experiment(dataset, model, [variant], p, num_layers=num_layers)[1][variant.capitalize()][-1]
 #                     for _ in range(n_runs)
 #                 ]
 #                 mean, std = np.mean(results), np.std(results)
@@ -78,7 +82,7 @@ t_values = [round(x, 2) for x in np.arange(0.0, 1.01, 0.1)]
 #                 variant = f"Optimal $t$ ({t_metric})"
 #                 key = (model, variant)
 #                 results = [
-#                     run_experiment(dataset, model, ['general_family'], p, t=t)[1]['General_family'][-1]
+#                     run_experiment(dataset, model, ['general_family'], p, t=t, num_layers=num_layers)[1]['General_family'][-1]
 #                     for _ in range(n_runs)
 #                 ]
 #                 mean, std = np.mean(results), np.std(results)
@@ -234,7 +238,7 @@ for model in models:
         for variant in ['none', 'adjacency', 'laplacian']:
             key = (model, variant)
             results = [
-                run_experiment(dataset, model, [variant], 0.0)[1][variant.capitalize()][-1]
+                run_experiment(dataset, model, [variant], 0.0, num_layers=num_layers)[1][variant.capitalize()][-1]
                 for _ in range(n_runs)
             ]
             mean, std = np.mean(results), np.std(results)
@@ -249,11 +253,11 @@ for model in models:
             variant = f"Optimal $t$ ({t_metric})"
             key = (model, variant)
             results = [
-                run_experiment(dataset, model, ['general_family'], p, t=t)[1]['General_family'][-1]
+                run_experiment(dataset, model, ['general_family'], 0.0, t=t, num_layers=num_layers)[1]['General_family'][-1]
                 for _ in range(n_runs)
             ]
             mean, std = np.mean(results), np.std(results)
-            data[key][p] = (mean, std)
+            data[key][dataset] = (mean, std)
 
 
 # --------------------------------------------------
@@ -271,19 +275,19 @@ def find_best_entries(data, models, datasets):
                     val = data[(model, variant)][dataset][0]
                     if val > best_val:
                         best_val = val
-                        best_variant = (variant, None, None)
+                        best_variant = variant
             # General family
             for variant in ["Optimal $t$ (Correlation)", "Optimal $t$ (Spearman)"]:
                 if (model, variant) in data and dataset in data[(model, variant)]:
                     val = data[(model, variant)][dataset][0]
                     if val > best_val:
                         best_val = val
-                        best_variant = (variant, s, t)
+                        best_variant = variant
             best[model][dataset] = best_variant
     return best
 
 
-best_entries = find_best_entries(data, models, corruption_levels)
+best_entries = find_best_entries(data, models, datasets)
 
 # --------------------------------------------------
 # Step 3. Make LaTeX table
@@ -298,8 +302,9 @@ def make_table(data, models, datasets, best_entries):
 
     # Column definition
     n_d = len(datasets)
-    colspec = "ll" + "c"*n_d
+    colspec = "ll|" + "c"*n_d
     latex_lines.append("\\begin{tabular}{%s}" % colspec)
+    latex_lines.append("\\toprule")
 
     # Header row
     header = ["\\textbf{Model}", "\\textbf{Variant}"]
@@ -349,7 +354,7 @@ def make_table(data, models, datasets, best_entries):
         for variant in ["None", "Adjacency", "Laplacian", "Optimal $t$ (Correlation)", "Optimal $t$ (Spearman)"]:
             model_cell = model if first_variant else ""
             # gather per-dataset cell strings
-            cells = []
+            cells = [model.upper(), variant] if first_variant else ["", variant]
             for ds in datasets:
                 key = (model, variant.lower() if variant in ["None", "Adjacency", "Laplacian"] else variant)
                 # For baseline variants we stored keys as lowercase names ('none','adjacency','laplacian')
@@ -363,16 +368,25 @@ def make_table(data, models, datasets, best_entries):
                     if mean is None:
                         cells.append("--")
                     else:
-                        val_str = f"{mean*100:.2f}"
+                        val_str = f"$%.2f (%.2f)$" % (mean * 100, std * 100)
                         # bold if empirical best
-                        if best_entries.get(model, {}).get(ds, (None,))[0] == lookup_key[1] if best_entries.get(model, {}).get(ds) else False:
-                            cells.append(f"\\textbf{{{val_str}}}")
+                        # if best_entries.get(model, {}).get(ds, (None,))[0] == lookup_key[1] if best_entries.get(model, {}).get(ds) else False:
+                        #     cells.append(f"\\textbf{{{val_str}}}")
+                        # else:
+                        #     cells.append(val_str)
+
+                        best_variant = best_entries.get(model, {}).get(ds)
+                        if best_variant == lookup_key[1]:
+                            val_str = f"$\\mathbf{{{mean * 100:.2f} ({std * 100:.2f})}}$"
+                            cells.append(val_str)
                         else:
                             cells.append(val_str)
+
                 else:
                     cells.append("--")
 
-            latex_lines.append(f"{model_cell} & {variant} & {cells[0]} & {cells[1]} \\\\")
+            latex_lines.append(" & ".join(cells) + " \\\\")
+            # latex_lines.append(f"{model_cell} & {variant} & {cells[0]} & {cells[1]} \\\\")
             first_variant = False
         latex_lines.append("\\midrule")
 
@@ -388,7 +402,7 @@ def make_table(data, models, datasets, best_entries):
 # --------------------------------------------------
 # Step 4. Generate LaTeX code
 # --------------------------------------------------
-table_tex = make_table(data, models, datasets, s_values, t_values, best_entries)
+table_tex = make_table(data, models, datasets, best_entries)
 print(table_tex)
-
-
+print()
+print(optimal_t_by_dataset)
