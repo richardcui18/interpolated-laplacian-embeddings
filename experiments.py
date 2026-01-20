@@ -23,7 +23,7 @@ import os
 # We train the model
 # We evaluate the model
 # We log the results
-def run_experiment(dataset, model_name, feature_names, p, t = None):
+def run_experiment(dataset, model_name, feature_names, p, t = None, num_layers = None):
     k = 10
     net_type = 'sign_net'
     print(f"Running p = {p}...")
@@ -50,7 +50,7 @@ def run_experiment(dataset, model_name, feature_names, p, t = None):
         if model_name == "mlp":
             model = get_model("mlp", hyperparams, k, net_type)
         elif model_name == "gcn":
-            model = get_model("gcn", hyperparams, k, net_type)
+            model = get_model("gcn", hyperparams, k, net_type, num_layers=num_layers)
         elif model_name == "gin":
             model = get_model("gin", hyperparams, k, net_type)
         # elif model_name == "gat":
