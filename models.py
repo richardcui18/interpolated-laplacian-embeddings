@@ -21,12 +21,13 @@ from torch_geometric.nn import GINConv, GATConv
 from torch.nn import Sequential, BatchNorm1d, Dropout
 from torch_geometric.nn import SAGEConv
 
-def get_model(modelname, hyperparams, k, net_type):
+def get_model(modelname, hyperparams, k, net_type, num_layers=None):
     input_size = hyperparams["input_size"]
     hidden_size = hyperparams["hidden_size"]
     num_classes = hyperparams["num_classes"]
+
     if modelname == "gcn":
-        return GCN(input_size, hidden_size, num_classes, k, net_type)
+        return GCN(input_size, hidden_size, num_classes, k, net_type, num_layers)
     elif modelname == "mlp":
         return MLP(input_size, hidden_size, num_classes, k, net_type)
     elif modelname == "gin":
@@ -90,9 +91,10 @@ class IGNBasisInv(nn.Module):
 
 # Define GCN Model
 class GCN(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, k, net_type):
+    def __init__(self, in_channels, hidden_channels, out_channels, k, net_type, num_layers):
         super().__init__()
         self.k = k  # number of spectral components
+        self.num_layers = num_layers
 
         if net_type == "sign_net":
             self.net = SignNet(k, hidden_channels, nlayer=2)
@@ -109,11 +111,12 @@ class GCN(torch.nn.Module):
         else:
             in_channels_new = in_channels
 
-        self.conv1 = GCNConv(in_channels_new, hidden_channels)
-        self.conv2 = GCNConv(hidden_channels, hidden_channels)
-        self.conv3 = GCNConv(hidden_channels, hidden_channels)
-        self.conv4 = GCNConv(hidden_channels, hidden_channels)
+        self.convs = nn.ModuleList()
+        self.convs.append(GCNConv(in_channels_new, hidden_channels))
+        for _ in range(num_layers - 1):
+            self.convs.append(GCNConv(hidden_channels, hidden_channels))
         self.out = Linear(hidden_channels, out_channels)
+
 
 
     def forward(self, x, edge_index):
@@ -141,12 +144,13 @@ class GCN(torch.nn.Module):
             # Concatenate back
             x = torch.cat([x_node, x_spectral], dim=-1)
         
-        h = self.conv1(x, edge_index).relu()
-        h = self.conv2(h, edge_index).relu()
-        h = self.conv3(h, edge_index).relu()
-        h = self.conv4(h, edge_index).relu()
+        h = x
+        for conv in self.convs:
+            h = conv(h, edge_index).relu()
+
         z = self.out(h)
         return h, z
+
 
 # Define MLP Model
 class MLP(torch.nn.Module):
