@@ -15,7 +15,7 @@ torch.manual_seed(seed)
 
 # models = ['gcn', 'mlp', 'gin', 'sage']
 models = ['gcn', 'mlp']
-num_layers = 5
+num_layers = 1
 
 print("Num layers in GCN", num_layers)
 
@@ -195,7 +195,9 @@ t_values = [round(x, 2) for x in np.arange(0.0, 1.01, 0.1)]
 # === SBM and No Features Graph ===
 data = defaultdict(dict)
 n_runs = 5
-datasets = ['random_core', 'random_affinity'] # SBM
+# datasets = ['random_core', 'random_affinity'] # SBM
+# datasets = ['deezer_europe']
+datasets = ['twitch_pt']
 # datasets = ["karate", "twitter_congress", 'facebook_ego', 'polblogs'] # no features
 
 # ----------------------------------------------------------------------
