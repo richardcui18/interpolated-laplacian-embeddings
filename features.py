@@ -57,14 +57,14 @@ def get_features(data, feature_name, k, p, t = None):
         A = to_scipy_sparse_matrix(data.edge_index).tocsc()
         dense_A = A.toarray()
 
-        degrees = dense_A.sum(axis=1)
-        D = np.diag(degrees)
+        L_sparse = csgraph.laplacian(A, normed=False)
+        dense_L = L_sparse.toarray()
 
-        M = t * D - (1.0 - t) * dense_A
+        M = t * dense_L + (1.0 - t) * dense_A
 
         eigval, eigvec = eigh(M)
 
-        topk_indices = np.argsort(np.abs(eigval))[:k]
+        topk_indices = np.argsort(eigval)[:k]
         eigvec_topk = eigvec[:, topk_indices]
 
         general_features = torch.from_numpy(eigvec_topk).float()
