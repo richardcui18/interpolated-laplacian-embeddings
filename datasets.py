@@ -1,7 +1,7 @@
 """
 Setup the require datasets and a getter
 """
-from torch_geometric.datasets import FacebookPagePage, Planetoid, KarateClub, Planetoid, WebKB, AttributedGraphDataset, CitationFull, PolBlogs
+from torch_geometric.datasets import FacebookPagePage, Planetoid, KarateClub, Planetoid, WebKB, PolBlogs, DeezerEurope
 from sklearn import model_selection
 import torch
 import pandas as pd
@@ -13,6 +13,7 @@ from torch_sparse import SparseTensor
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import numpy as np
+from torch_geometric.datasets import Twitch as PyGTwitch
 
 
 def get_dataloaders(dataset):
@@ -299,5 +300,134 @@ def get_dataloaders(dataset):
         data.train_mask, data.test_mask = train_mask, test_mask
 
         return data, train_mask, test_mask, len(torch.unique(y))
+
+    elif dataset == "deezer_europe":
+        data_dir = "/home/users/zc186/interpolated-laplacian-embeddings/data/deezer_europe"
+
+        # edges
+        edges_df = pd.read_csv(f"{data_dir}/deezer_europe_edges.csv")
+        edges_df = edges_df.astype({"node_1": int, "node_2": int})
+        edge_index = torch.tensor(edges_df[["node_1", "node_2"]].values.T, dtype=torch.long).contiguous()
+
+        # targets
+        targets_df = pd.read_csv(f"{data_dir}/deezer_europe_target.csv")
+        targets_df = targets_df.astype({"id": int, "target": int})
+        max_id_targets = int(targets_df["id"].max())
+        y_full = torch.zeros(max_id_targets + 1, dtype=torch.long)
+        y_full[targets_df["id"].values] = torch.tensor(targets_df["target"].values, dtype=torch.long)
+
+        # features
+        # with open(f"{data_dir}/deezer_europe_features.json", "r") as fh:
+        #     features_json = json.load(fh)
+
+        # max_edge_node = int(max(edges_df["node_1"].max(), edges_df["node_2"].max()))
+        # max_node_id = max(max_edge_node, int(y_full.size(0) - 1))
+        # num_nodes = max_node_id + 1
+
+        # features_list = []
+        # for i in range(num_nodes):
+        #     features_list.append(features_json.get(str(i), []))
+
+        # mlb = MultiLabelBinarizer(sparse_output=False)
+        # X = mlb.fit_transform(features_list)
+        # x = torch.tensor(X, dtype=torch.float)
+
+        # Dummy features
+        max_edge_node = int(max(edges_df["node_1"].max(), edges_df["node_2"].max()))
+        max_node_id = max(max_edge_node, int(y_full.size(0) - 1))
+        num_nodes = max_node_id + 1
+        feature_dim = 1
+        x = torch.ones((num_nodes, feature_dim), dtype=torch.float)
+
+
+
+
+        if y_full.size(0) < num_nodes:
+            pad = torch.zeros(num_nodes - y_full.size(0), dtype=torch.long)
+            y = torch.cat([y_full, pad], dim=0)
+        else:
+            # truncate or keep as-is
+            y = y_full[:num_nodes]
+
+        # train/test split
+        num_train = int(0.7 * num_nodes)
+        perm = torch.randperm(num_nodes)
+        train_mask = torch.zeros(num_nodes, dtype=torch.bool)
+        test_mask = torch.zeros(num_nodes, dtype=torch.bool)
+        train_mask[perm[:num_train]] = True
+        test_mask[perm[num_train:]] = True
+
+        data = Data(x=x, edge_index=edge_index, y=y)
+        data.train_mask = train_mask
+        data.test_mask = test_mask
+
+        num_classes = int(torch.unique(y).numel())
+        return data, train_mask, test_mask, num_classes
+
+    elif dataset == "twitch_pt":
+        sub_dataset = "PT"
+        data_dir = f"/home/users/zc186/interpolated-laplacian-embeddings/data/twitch/{sub_dataset}"
+
+        # edges
+        edges_df = pd.read_csv(f"{data_dir}/musae_{sub_dataset}_edges.csv")
+        edges_df = edges_df.astype({"from": int, "to": int})
+        edge_index = torch.tensor(edges_df[["from", "to"]].values.T, dtype=torch.long).contiguous()
+
+        # targets
+        targets_df = pd.read_csv(f"{data_dir}/musae_{sub_dataset}_target.csv")
+        targets_df["mature"] = targets_df["mature"].astype(bool).astype(int)
+        max_id_targets = int(targets_df["new_id"].max())
+        y_full = torch.zeros(max_id_targets + 1, dtype=torch.long)
+        y_full[targets_df["new_id"].values] = torch.tensor(targets_df["mature"].values, dtype=torch.long)
+
+        # features
+        with open(f"{data_dir}/musae_{sub_dataset}_features.json", "r") as fh:
+            features_json = json.load(fh)
+
+        max_edge_node = int(edge_index.max().item())
+        max_node_id = max(max_edge_node, int(y_full.size(0) - 1))
+        num_nodes = max_node_id + 1
+
+        features_list = []
+        for i in range(num_nodes):
+            features_list.append(features_json.get(str(i), []))
+
+        mlb = MultiLabelBinarizer(sparse_output=False)
+        X = mlb.fit_transform(features_list)
+        x = torch.tensor(X, dtype=torch.float)
+
+        # # Dummy features
+        # max_edge_node = int(edge_index.max().item())
+        # max_node_id = max(max_edge_node, int(y_full.size(0) - 1))
+        # num_nodes = max_node_id + 1
+        # feature_dim = 1
+        # x = torch.ones((num_nodes, feature_dim), dtype=torch.float)
+
+
+
+        if y_full.size(0) < num_nodes:
+            pad = torch.zeros(num_nodes - y_full.size(0), dtype=torch.long)
+            y = torch.cat([y_full, pad], dim=0)
+        else:
+            # truncate or keep as-is
+            y = y_full[:num_nodes]
+
+        # train/test split
+        num_train = int(0.7 * num_nodes)
+        perm = torch.randperm(num_nodes)
+        train_mask = torch.zeros(num_nodes, dtype=torch.bool)
+        test_mask = torch.zeros(num_nodes, dtype=torch.bool)
+        train_mask[perm[:num_train]] = True
+        test_mask[perm[num_train:]] = True
+
+        data = Data(x=x, edge_index=edge_index, y=y)
+        data.train_mask = train_mask
+        data.test_mask = test_mask
+
+        num_classes = int(torch.unique(y).numel())
+        return data, train_mask, test_mask, num_classes
+
+
+
 
 
